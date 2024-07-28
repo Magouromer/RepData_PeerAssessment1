@@ -1,0 +1,180 @@
+Project 1 of Module 5
+=======================================
+---
+Author: "Magouromer"
+Date: "2024-07-20"
+Output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+```
+
+Download and load the dataset
+```{r}
+setwd("G:/My Drive/From Dropbox/Training/Data science specialization/Assignments/Module 5")
+
+#Load the data
+
+fileUrl <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip"
+download.file(fileUrl, file.path("./", "data.zip"))
+
+
+# Unzip using WinRAR utility on Windows 8:
+executable <- file.path("C:", "Program Files", "WinRAR", "WinRAR.exe")
+cmd <- paste(paste0("\"", executable, "\""), "x", 
+             paste0("\"", file.path("./", "data.zip"), "\""))
+system(cmd)
+
+data <- read.csv("activity.csv", sep = ",")
+
+#Create a folder for figures
+if(!dir.exists("figure") == TRUE) dir.create("figure")
+
+```
+
+**What is mean total number of steps taken per day?**
+1. Total number of steps taken per day
+```{r}
+dailystep <- tapply(data$steps, data$date, sum)
+
+```
+2. Histogram of daily steps
+```{r}
+hist(dailystep, xlab = "Total mumber of steps per day", main = "Distribution of total steps per day")
+png("./figure/totaldailysteps.png", width = 480, height = 480)
+    hist(dailystep, xlab = "Total mumber of steps per day", main = "Distribution of total steps per day")
+dev.off()
+```
+3. Mean and median of the total number of steps taken per day
+```{r}
+dailytotmean <- mean(dailystep, na.rm = TRUE)
+dailytotmedian <- median(dailystep, na.rm = TRUE)
+```
+The mean for the total number of steps taken per day is **`r dailytotmean`** and the median is **`r dailytotmedian`**.   
+
+**What is the average daily activity pattern?**
+
+1. Average of steps taken by 5-minute intervalle
+
+```{r}
+# Compute the average of steps taken in each 5-minute intervalle across all days
+dailystep_mean <- aggregate(data$steps, list(data$interval), na.rm = TRUE, mean)
+
+plot(dailystep_mean$Group.1, dailystep_mean$x, type = "l", xlab = "5-minute intervalle", ylab = "Daily average per intervalle", 
+     main = "Average number of steps across all days", 
+     ylim=c(min(dailystep_mean$x, na.rm=TRUE)-5,
+            max(dailystep_mean$x, na.rm=TRUE)+5))
+
+png("./figure/dailystep_mean.png", width = 480, height = 480)
+plot(dailystep_mean$Group.1, dailystep_mean$x, type = "l", xlab = "5-minute intervalle", ylab = "Daily average per intervalle", 
+     main = "Average number of steps across all days", 
+     ylim=c(min(dailystep_mean$x, na.rm=TRUE)-5,
+            max(dailystep_mean$x, na.rm=TRUE)+5))
+dev.off()
+```
+2. 
+```{r}
+max5int <- dailystep_mean[which(grepl(max(dailystep_mean$x, na.rm=TRUE), dailystep_mean$x)), ]$Group.1
+```
+
+The maximum number of steps on average across all the days is in the 5-intervalle `r max5int`.
+
+
+Imputing missing values
+
+1.Number of rows with NAs.
+
+```{r}
+missval <-length(which(is.na(data$steps)))
+```
+
+The total number of rows with NAs is `r missval`.
+
+2. Imputing missing values from overall mean
+
+```{r}
+
+dailystep_mean <- rename(dailystep_mean, interval = Group.1)
+data_imputed <- left_join(data, dailystep_mean, by = "interval")
+```
+
+3. Create new dataset with the missing data filled in.
+```{r}
+data_imputed <- mutate(data_imputed,
+                imputed = replace(data_imputed$steps, is.na(data_imputed$steps), data_imputed$x)
+)
+```
+
+4. Histogram with imputed missing data
+
+Total number of steps taken per day
+```{r}
+dailystep_imp <- tapply(data_imputed$imputed, data_imputed$date, sum)
+
+```
+Histogram of daily steps
+```{r}
+hist(dailystep_imp, xlab = "Total mumber of steps per day", main = "Distribution of total steps per day after imputation of missing values")
+png("./figure/dailystep_imp.png", width = 480, height = 480)
+    hist(dailystep_imp, xlab = "Total mumber of steps per day", main = "Distribution of total steps per day after imputation of missing values")
+dev.off()
+```
+3. Mean and median of the total number of steps taken per day
+```{r}
+dailytotmean_input <- mean(dailystep_imp)
+dailytotmedian_input <- median(dailystep_imp)
+```
+The mean for the total number of steps taken per day is **`r dailytotmean_input`** and the median is **`r dailytotmedian_input`**.  
+These values do not diffre from the first part. The method of imputation selected for missing data does not impacted in average the total daily number of steps. 
+
+
+**Are there differences in activity patterns between weekdays and weekends?**
+1. New factor for “weekday” and “weekend”
+```{r}
+str(data_imputed$date)
+data_imputed$date <- as.Date(data_imputed$date)
+data_imputed <- mutate(data_imputed,
+                       day = weekdays(data_imputed$date))
+table(data_imputed$day)
+
+data_imputed <- mutate(data_imputed,
+                       week_weekend = data_imputed$day,
+                       week_weekend = replace(week_weekend, week_weekend =="Monday", "weekday"),
+                       week_weekend = replace(week_weekend, week_weekend =="Tuesday", "weekday"),
+                       week_weekend = replace(week_weekend, week_weekend =="Wednesday", "weekday"),
+                       week_weekend = replace(week_weekend, week_weekend =="Thursday", "weekday"),
+                       week_weekend = replace(week_weekend, week_weekend =="Friday", "weekday"),
+                       week_weekend = replace(week_weekend, week_weekend =="Saturday", "weekend"),
+                       week_weekend = replace(week_weekend, week_weekend =="Sunday", "weekend")
+)
+
+```
+2. Panel plot
+```{r}
+
+dailystep_mean_impwd <- filter(data_imputed, week_weekend == "weekday")
+dailystep_mean_impwd <- aggregate(dailystep_mean_impwd$imputed, list(dailystep_mean_impwd$interval), mean)
+dailystep_mean_impwd$week_weekend <- "weekday"
+
+
+dailystep_mean_impwkd <- filter(data_imputed, week_weekend == "weekend")
+dailystep_mean_impwkd <- aggregate(dailystep_mean_impwkd$imputed, list(dailystep_mean_impwkd$interval), mean)
+dailystep_mean_impwkd$week_weekend <- "weekend"
+
+mean_imp <- rbind(dailystep_mean_impwd, dailystep_mean_impwkd)
+ library(lattice)
+  xyplot(mean_imp$x ~ mean_imp$Group.1 |mean_imp$week_weekend, type = "l", xlab = "5-minute intervalle", ylab = "Average steps per intervalle", 
+       main = "Average number of steps across all weekdays and weekends",
+       ylim=c(min(mean_imp$x)-5,
+              max(mean_imp$x)+5))
+
+png("./figure/mean_imp.png", width = 480, height = 480)
+  xyplot(mean_imp$x ~ mean_imp$Group.1 |mean_imp$week_weekend, type = "l", xlab = "5-minute intervalle", ylab = "Average steps per intervalle", 
+       main = "Average number of steps across all weekdays and weekends",
+       ylim=c(min(mean_imp$x)-5,
+              max(mean_imp$x)+5))
+dev.off()
+
+```
